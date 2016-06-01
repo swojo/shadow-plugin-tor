@@ -1,0 +1,1 @@
+cmd='/home/sam/shadow-tor2/src/external/rpth/configure;--quiet;--prefix=/home/sam/shadow-tor2/src/external;--with-tags=;--disable-shared;--disable-tests;--enable-debug=no;--enable-optimize=yes;CFLAGS=-Qunused-arguments'

@@ -1,0 +1,2 @@
+/home/sam/shadow-tor2/src/external/CMakeFiles/rpth.dir
+/home/sam/shadow-tor2/src/external/CMakeFiles/rpth-src.dir
