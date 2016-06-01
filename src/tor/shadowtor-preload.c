@@ -25,7 +25,7 @@
 #include <regex.h>
 
 #include "torlog.h"
-#include "/home/sam/shadow-tor2/src/external/rpth/pth_lib.c"
+#include "../external/rpth/pth_lib.c"
 
 /* tor functions */
 typedef int (*tor_init_fp)(int argc, char *argv[]);
