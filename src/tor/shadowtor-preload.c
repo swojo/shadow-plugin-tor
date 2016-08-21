@@ -80,6 +80,7 @@ struct _PreloadWorker {
     GHashTable* hash_table;
     InterposeFuncs vtable;
     int consensusCounter;
+    char tor_version[10];
 };
 
 /*
@@ -118,20 +119,19 @@ static void _shadowtorpreload_cryptoTeardown(void);
  * not *node* dependent, only *thread* dependent.
  */
 
-char tor_version[10];
 
 void get_tor_version_handle(const gchar* plugin){
   regex_t regex;
   int reti, len;
   regmatch_t pmatch[8];
   
-  memset(tor_version, 0, 10);
+  memset(_shadowtorpreload_getWorker()->tor_version, 0, 10);
 
-  reti = regcomp(&regex, "([[:digit:]].){3}[[:digit:]]", REG_EXTENDED);
+  reti = regcomp(&regex, "([[:digit:]].){3}[[:digit:]]+", REG_EXTENDED);
   reti = regexec(&regex, plugin, 8, pmatch, 0);
       len = pmatch[0].rm_eo - pmatch[0].rm_so;
-      memcpy(tor_version, plugin+pmatch[0].rm_so, len);
-      tor_version[len]=0;
+      memcpy(_shadowtorpreload_getWorker()->tor_version, plugin+pmatch[0].rm_so, len);
+      _shadowtorpreload_getWorker()->tor_version[len]=0;
   regfree(&regex);
   
 }
@@ -168,7 +168,7 @@ void shadowtorpreload_init(GModule* handle, int nLocks) {
     g_module_symbol(handle, "crypto_init_siphash_key", (gpointer*)&(vtable->crypto_init_siphash_key));
 
     get_tor_version_handle(g_module_name(handle)); 
-    const char* version = g_strdup(tor_version);
+    const char* version = g_strdup(_shadowtorpreload_getWorker()->tor_version);
     g_hash_table_insert(worker->hash_table, (gpointer*)(version), (gpointer*)(vtable));
 
     /* handle multi-threading support
@@ -194,13 +194,12 @@ void shadowtorpreload_clear(void) {
  * until we can find the race condition that occurs when running shadow
  * with multiple worker threads. */
 G_LOCK_DEFINE_STATIC(shadowtorpreloadTorInitLock);
-G_LOCK_DEFINE_STATIC(shadowtorpreloadTorVersionLock);
 int tor_init(int argc, char *argv[]) {
     interposer_disable();
     G_LOCK(shadowtorpreloadTorInitLock);
     interposer_enable();
     get_tor_version_handle(pth_gctx_get()->pth_current->name);
-    TorInterposeFuncs* curr_tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(tor_version));
+    TorInterposeFuncs* curr_tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(_shadowtorpreload_getWorker()->tor_version));
     int ret = curr_tor_vtable->tor_init(argc, argv);
     interposer_disable();
     G_UNLOCK(shadowtorpreloadTorInitLock);
@@ -225,14 +224,12 @@ int write_str_to_file(const char *fname, const char *str, int bin) {
     }
     
     interposer_disable();
-    G_LOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
     get_tor_version_handle(pth_gctx_get()->pth_current->name);
-    TorInterposeFuncs* curr_tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(tor_version));
+    TorInterposeFuncs* curr_tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(_shadowtorpreload_getWorker()->tor_version));
 
     interposer_disable();
-    G_UNLOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
     return curr_tor_vtable->write_str_to_file(fname, str, bin); 
@@ -594,14 +591,12 @@ int evthread_set_condition_callbacks(const struct evthread_condition_callbacks *
 int crypto_early_init(void) {
     interposer_disable();
     G_LOCK(shadowtorpreloadSecondaryLock);
-    G_LOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
     get_tor_version_handle(pth_gctx_get()->pth_current->name);
-    TorInterposeFuncs* tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(tor_version));
+    TorInterposeFuncs* tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(_shadowtorpreload_getWorker()->tor_version));
 
     interposer_disable();
-    G_UNLOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
 
@@ -630,14 +625,12 @@ int crypto_early_init(void) {
 int crypto_global_init(int useAccel, const char *accelName, const char *accelDir) {
     interposer_disable();
     G_LOCK(shadowtorpreloadPrimaryLock);
-    G_LOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
     get_tor_version_handle(pth_gctx_get()->pth_current->name);
-    TorInterposeFuncs* tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(tor_version));
+    TorInterposeFuncs* tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(_shadowtorpreload_getWorker()->tor_version));
 
     interposer_disable();
-    G_UNLOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
     shadowtorpreloadGlobalState.nTorCryptoNodes++;
@@ -662,14 +655,12 @@ int crypto_global_init(int useAccel, const char *accelName, const char *accelDir
 int crypto_global_cleanup(void) {
     interposer_disable();
     G_LOCK(shadowtorpreloadPrimaryLock);
-    G_LOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
     get_tor_version_handle(pth_gctx_get()->pth_current->name);
-    TorInterposeFuncs* tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(tor_version));
+    TorInterposeFuncs* tor_vtable = g_hash_table_lookup(_shadowtorpreload_getWorker()->hash_table, (gconstpointer*)(_shadowtorpreload_getWorker()->tor_version));
 
     interposer_disable();
-    G_UNLOCK(shadowtorpreloadTorVersionLock);
     interposer_enable();
 
 
